@@ -3,6 +3,8 @@ let categories = [];
 let vendors = [];
 let editingComponent = null;
 let editingVendor = null;
+let currentView = 'grid';
+let quickEditingComponent = null;
 
 // Initialize page
 document.addEventListener('DOMContentLoaded', () => {
@@ -10,6 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
     loadVendors();
     loadComponents();
     initializeEventListeners();
+
+    // Load saved view preference
+    const savedView = localStorage.getItem('componentsView');
+    if (savedView) {
+        switchView(savedView);
+    }
 
     // Add vendor change handler
     document.getElementById('activeVendor').addEventListener('change', (e) => {
@@ -72,45 +80,82 @@ async function loadComponents() {
     }
 }
 
-// Display components in grid
+// Display components
 function displayComponents() {
-    const grid = document.getElementById('componentsGrid');
-    grid.innerHTML = '';
-    
     const filteredComponents = filterComponentsList();
     
-    filteredComponents.forEach(component => {
+    if (currentView === 'grid') {
+        displayGridView(filteredComponents);
+    } else {
+        displayListView(filteredComponents);
+    }
+}
+
+// Display grid view
+function displayGridView(components) {
+    const grid = document.getElementById('gridView');
+    grid.innerHTML = '';
+    
+    components.forEach(component => {
         const card = document.createElement('div');
         card.className = 'col-md-6 col-lg-3';
         card.innerHTML = `
             <div class="card price-card h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start mb-2">
-                        <h5 class="card-title mb-0">${component.name}</h5>
-                        <div class="d-flex gap-1">
-                            <span class="badge bg-primary category-badge">
-                                ${component.category_name}
-                            </span>
-                            <span class="badge bg-secondary vendor-badge">
-                                ${component.vendor_name || 'No Vendor'}
-                            </span>
-                        </div>
+                <div class="card-header bg-transparent border-0 pt-3 pb-0">
+                    <div class="d-flex gap-1 mb-2">
+                        <span class="badge bg-primary category-badge">
+                            <i class="bi bi-tag"></i> ${component.category_name}
+                        </span>
+                        <span class="badge bg-secondary vendor-badge">
+                            <i class="bi bi-building"></i> ${component.vendor_name || 'No Vendor'}
+                        </span>
                     </div>
-                    <p class="card-text text-muted mb-3">${component.description || 'No description'}</p>
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Rs. ${component.price.toLocaleString()}</h6>
-                            <small class="last-updated">
-                                Updated: ${new Date(component.last_price_update || Date.now()).toLocaleDateString()}
+                    <h5 class="card-title text-truncate" title="${component.name}">${component.name}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="card-text text-muted small mb-3" style="min-height: 3em;">
+                        ${component.description || 'No description'}
+                    </p>
+                    <div class="price-section">
+                        <div class="d-flex justify-content-between align-items-end mb-2">
+                            <div>
+                                <small class="text-muted">Price</small>
+                                <h4 class="mb-0">Rs. ${component.price.toLocaleString()}</h4>
+                            </div>
+                            <small class="text-muted text-end">
+                                Last updated<br>
+                                ${new Date(component.last_price_update || Date.now()).toLocaleDateString()}
                             </small>
                         </div>
-                        <div class="btn-group">
-                            <button onclick="editComponent(${component.id})" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-pencil"></i>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent border-0">
+                    <div class="d-flex justify-content-between">
+                        <button onclick="quickEdit(${component.id})" class="btn btn-sm btn-outline-primary flex-grow-1 me-2">
+                            <i class="bi bi-pencil-square"></i> Quick Edit
+                        </button>
+                        <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="bi bi-three-dots-vertical"></i>
                             </button>
-                            <button onclick="deleteComponent(${component.id})" class="btn btn-sm btn-outline-danger">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="editComponent(${component.id})">
+                                        <i class="bi bi-pencil"></i> Full Edit
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="duplicateComponent(${component.id})">
+                                        <i class="bi bi-copy"></i> Duplicate
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item text-danger" href="#" onclick="deleteComponent(${component.id})">
+                                        <i class="bi bi-trash"></i> Delete
+                                    </a>
+                                </li>
+                            </ul>
                         </div>
                     </div>
                 </div>
@@ -119,14 +164,84 @@ function displayComponents() {
         grid.appendChild(card);
     });
     
-    // Show empty state if no components
-    if (filteredComponents.length === 0) {
+    if (components.length === 0) {
         grid.innerHTML = `
             <div class="col-12 text-center py-5">
                 <i class="bi bi-inbox display-1 text-muted"></i>
                 <h3 class="mt-3">No Components Found</h3>
                 <p class="text-muted">Try adjusting your search or filters</p>
             </div>
+        `;
+    }
+}
+
+// Display list view
+function displayListView(components) {
+    const tbody = document.getElementById('componentsTable');
+    tbody.innerHTML = '';
+    
+    components.forEach(component => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>
+                <div class="d-flex flex-column">
+                    <strong>${component.name}</strong>
+                    <small class="text-muted">${component.description || 'No description'}</small>
+                </div>
+            </td>
+            <td><span class="badge bg-primary">${component.category_name}</span></td>
+            <td><span class="badge bg-secondary">${component.vendor_name || 'No Vendor'}</span></td>
+            <td class="text-end">
+                <strong>Rs. ${component.price.toLocaleString()}</strong>
+            </td>
+            <td>
+                <small class="text-muted">
+                    ${new Date(component.last_price_update || Date.now()).toLocaleDateString()}
+                </small>
+            </td>
+            <td class="text-end">
+                <div class="btn-group btn-group-sm">
+                    <button onclick="quickEdit(${component.id})" class="btn btn-outline-primary">
+                        <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="editComponent(${component.id})">
+                                    <i class="bi bi-pencil"></i> Full Edit
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="duplicateComponent(${component.id})">
+                                    <i class="bi bi-copy"></i> Duplicate
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="#" onclick="deleteComponent(${component.id})">
+                                    <i class="bi bi-trash"></i> Delete
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    if (components.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center py-5">
+                    <i class="bi bi-inbox display-1 text-muted"></i>
+                    <h3 class="mt-3">No Components Found</h3>
+                    <p class="text-muted">Try adjusting your search or filters</p>
+                </td>
+            </tr>
         `;
     }
 }
@@ -622,3 +737,97 @@ function editComponent(id) {
           ${vendor.phone ? `<i class="bi bi-telephone"></i> ${vendor.phone}` : ''}
       `;
   }
+
+  // Switch between grid and list views
+  function switchView(view) {
+      currentView = view;
+      localStorage.setItem('componentsView', view);
+      
+      // Update buttons
+      document.querySelectorAll('[data-view]').forEach(btn => {
+          btn.classList.toggle('active', btn.dataset.view === view);
+      });
+      
+      // Show/hide views
+      document.getElementById('gridView').classList.toggle('d-none', view !== 'grid');
+      document.getElementById('listView').classList.toggle('d-none', view !== 'list');
+      
+      // Refresh display
+      displayComponents();
+  }
+
+  // Quick edit component price
+  function quickEdit(id) {
+      const component = components.find(c => c.id === id);
+      if (!component) return;
+      
+      quickEditingComponent = component;
+      
+      // Set modal content
+      const modal = document.getElementById('quickEditModal');
+      modal.querySelector('.component-name').textContent = component.name;
+      modal.querySelector('.vendor-name').textContent = component.vendor_name;
+      modal.querySelector('.category-name').textContent = component.category_name;
+      
+      // Set current price
+      document.getElementById('quickEditPrice').value = component.price;
+      
+      // Show modal
+      new bootstrap.Modal(modal).show();
+  }
+
+  // Save quick edit changes
+  async function saveQuickEdit() {
+      if (!quickEditingComponent) return;
+      
+      const newPrice = parseFloat(document.getElementById('quickEditPrice').value);
+      if (isNaN(newPrice) || newPrice < 0) {
+          showToast('Please enter a valid price', 'error');
+          return;
+      }
+      
+      try {
+          const response = await fetch(`/api/components/${quickEditingComponent.id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  category_id: quickEditingComponent.category_id,
+                  vendor_id: quickEditingComponent.vendor_id,
+                  name: quickEditingComponent.name,
+                  description: quickEditingComponent.description,
+                  price: newPrice
+              })
+          });
+          
+          if (!response.ok) throw new Error('Failed to update price');
+          
+          // Close modal
+          bootstrap.Modal.getInstance(document.getElementById('quickEditModal')).hide();
+          
+          // Refresh components
+          await loadComponents();
+          showToast('Price updated successfully');
+          
+          quickEditingComponent = null;
+          
+      } catch (error) {
+          showToast('Error updating price', 'error');
+      }
+  }
+
+  // Add keypress handler for quick edit modal
+  document.addEventListener('DOMContentLoaded', () => {
+      const quickEditModal = document.getElementById('quickEditModal');
+      if (quickEditModal) {
+          quickEditModal.addEventListener('keypress', (e) => {
+              if (e.key === 'Enter') {
+                  saveQuickEdit();
+              }
+          });
+          
+          // Auto-select price on modal show
+          quickEditModal.addEventListener('shown.bs.modal', () => {
+              document.getElementById('quickEditPrice').select();
+          });
+      }
+  });

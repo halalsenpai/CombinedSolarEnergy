@@ -14,22 +14,46 @@
 </head>
 <body class="bg-light">
     <!-- Navigation Header -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary sticky-top shadow-sm">
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="header-bg"></div>
         <div class="container">
-            <a class="navbar-brand" href="/">Solar System Invoice Generator</a>
+            <a class="navbar-brand d-flex align-items-center gap-2" href="/">
+                <div class="brand-icon">
+                    <i class="bi bi-sun"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-title">Solar System</span>
+                    <small class="brand-subtitle d-block">Invoice Generator</small>
+                </div>
+            </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link {{ 'active' if request.path == '/' }}" href="/"><i class="bi bi-plus-circle"></i> Create New</a>
+                        <a class="nav-link" href="/">
+                            <i class="bi bi-house"></i>
+                            <span>Home</span>
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{ 'active' if request.path == '/records' }}" href="/records"><i class="bi bi-folder"></i> View Records</a>
+                        <a class="nav-link" href="/records">
+                            <i class="bi bi-clock-history"></i>
+                            <span>Records</span>
+                        </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {{ 'active' if request.path == '/prices' }}" href="/prices"><i class="bi bi-currency-dollar"></i> Price Management</a>
+                        <a class="nav-link" href="/dashboard">
+                            <i class="bi bi-speedometer2"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/prices">
+                            <i class="bi bi-tag"></i>
+                            <span>Prices</span>
+                        </a>
                     </li>
                 </ul>
             </div>

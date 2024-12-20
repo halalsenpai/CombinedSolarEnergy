@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Solar System Invoice Generator{% endblock %}
+
+{% block page_css %}
+<style>
+    .stat-card {
+        transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+    }
+    .stat-icon {
+        font-size: 2rem;
+        opacity: 0.7;
+    }
+    .trend-indicator {
+        font-size: 0.8rem;
+    }
+    .trend-up { color: #198754; }
+    .trend-down { color: #dc3545; }
+    .chart-container {
+        height: 300px;
+        margin-bottom: 1.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="bi bi-speedometer2"></i> Dashboard</h2>
+        <div class="btn-group">
+            <button class="btn btn-outline-secondary" onclick="refreshStats()">
+                <i class="bi bi-arrow-clockwise"></i> Refresh
+            </button>
+            <select id="timeRange" class="form-select" style="max-width: 150px;">
+                <option value="7">Last 7 Days</option>
+                <option value="30">Last 30 Days</option>
+                <option value="90">Last 90 Days</option>
+                <option value="365">Last Year</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row g-4 mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted">Total Revenue</h6>
+                            <h3 id="totalRevenue">Rs. 0</h3>
+                            <small id="revenueTrend" class="trend-indicator">
+                                <!-- Will be populated by JavaScript -->
+                            </small>
+                        </div>
+                        <div class="stat-icon text-primary">
+                            <i class="bi bi-currency-dollar"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted">Total Orders</h6>
+                            <h3 id="totalOrders">0</h3>
+                            <small id="ordersTrend" class="trend-indicator">
+                                <!-- Will be populated by JavaScript -->
+                            </small>
+                        </div>
+                        <div class="stat-icon text-success">
+                            <i class="bi bi-cart"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted">Active Components</h6>
+                            <h3 id="activeComponents">0</h3>
+                            <small class="trend-indicator">
+                                Across <span id="vendorCount">0</span> vendors
+                            </small>
+                        </div>
+                        <div class="stat-icon text-warning">
+                            <i class="bi bi-box"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="text-muted">Avg Order Value</h6>
+                            <h3 id="avgOrderValue">Rs. 0</h3>
+                            <small id="avgValueTrend" class="trend-indicator">
+                                <!-- Will be populated by JavaScript -->
+                            </small>
+                        </div>
+                        <div class="stat-icon text-info">
+                            <i class="bi bi-graph-up"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Revenue Trend</h5>
+                    <div class="chart-container">
+                        <canvas id="revenueChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Top Categories</h5>
+                    <div class="chart-container">
+                        <canvas id="categoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity and Inventory Alerts -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Recent Price Updates</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="priceUpdatesTable">
+                            <thead>
+                                <tr>
+                                    <th>Component</th>
+                                    <th>Vendor</th>
+                                    <th>Price</th>
+                                    <th>Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Top Components by Revenue</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="topComponentsTable">
+                            <thead>
+                                <tr>
+                                    <th>Component</th>
+                                    <th>Category</th>
+                                    <th>Units Sold</th>
+                                    <th>Revenue</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/static/dashboard.js"></script>
+{% endblock %} 

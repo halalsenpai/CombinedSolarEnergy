@@ -7,6 +7,7 @@
 /* General Styles */
 body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    padding-top: 72px;
 }
 
 /* Card Customization */
@@ -239,5 +240,113 @@ body {
     .border-start,
     .border-end {
         border-color: #000 !important;
+    }
+} 
+
+/* Toast Styles */
+.toast-container {
+    z-index: 1050;
+}
+
+.toast {
+    opacity: 0;
+    transition: opacity 0.15s ease-in-out;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast .toast-body {
+    font-size: 0.9rem;
+    padding: 0.5rem 0.75rem;
+} 
+
+/* Header Styles */
+.navbar {
+    position: relative;
+    padding: 0.75rem 0;
+    position: fixed;
+    top: 0;
+    right: 0;
+    left: 0;
+    z-index: 1030;
+}
+
+.header-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%);
+    z-index: -1;
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+.navbar-dark .navbar-nav .nav-link {
+    color: rgba(255, 255, 255, 0.85);
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover {
+    color: white;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.navbar-dark .navbar-nav .nav-link.active {
+    color: white;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.brand-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.brand-text {
+    line-height: 1.2;
+}
+
+.brand-title {
+    font-weight: 600;
+    font-size: 1.1rem;
+}
+
+.brand-subtitle {
+    font-size: 0.75rem;
+    opacity: 0.8;
+}
+
+.navbar-toggler {
+    border: none;
+    padding: 0.5rem;
+}
+
+.navbar-toggler:focus {
+    box-shadow: none;
+}
+
+@media (max-width: 991.98px) {
+    .navbar-collapse {
+        background: rgba(0, 0, 0, 0.1);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-top: 1rem;
+    }
+    
+    .navbar-nav .nav-link {
+        padding: 0.75rem 1rem;
     }
 } 

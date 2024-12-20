@@ -4,6 +4,8 @@ from datetime import datetime
 import os
 import pandas as pd
 from werkzeug.utils import secure_filename
+from datetime import timedelta
+import json
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
@@ -26,7 +28,6 @@ def init_db():
                 company_name TEXT,
                 customer_name TEXT,
                 items TEXT,
-                subtotal REAL,
                 tax REAL,
                 total REAL,
                 created_at TEXT
@@ -237,8 +238,8 @@ def save_invoice():
             cursor.execute('''
                 INSERT INTO invoices (
                     type, number, date, company_name, customer_name,
-                    items, subtotal, tax, total, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    items, tax, total, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 doc_type,
                 number,
@@ -246,7 +247,6 @@ def save_invoice():
                 data['company_name'],
                 data['customer_name'],
                 data['items'],
-                data['subtotal'],
                 data['tax'],
                 data['total'],
                 datetime.now().isoformat()
@@ -351,13 +351,12 @@ def update_invoice(number):
             cursor.execute('''
                 UPDATE invoices 
                 SET customer_name = ?, date = ?, items = ?,
-                    subtotal = ?, tax = ?, total = ?
+                    tax = ?, total = ?
                 WHERE number = ?
             ''', (
                 data['customer_name'],
                 data['date'],
                 data['items'],
-                data['subtotal'],
                 data['tax'],
                 data['total'],
                 number
@@ -694,6 +693,214 @@ def delete_vendor(id):
             ''', (id,))
             cursor.execute('DELETE FROM vendors WHERE id = ?', (id,))
             return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/dashboard')
+def dashboard():
+    return render_template('dashboard.html')
+
+@app.route('/api/dashboard-stats')
+def get_dashboard_stats():
+    days = int(request.args.get('days', 30))
+    start_date = datetime.now() - timedelta(days=days)
+    previous_start = start_date - timedelta(days=days)  # For trend comparison
+    
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Get current period stats
+            cursor.execute('''
+                SELECT 
+                    COUNT(*) as total_orders,
+                    SUM(total) as total_revenue,
+                    AVG(total) as avg_order_value
+                FROM invoices 
+                WHERE date >= ? AND type = 'invoice'
+            ''', (start_date.isoformat(),))
+            
+            current_stats = cursor.fetchone()
+            
+            # Get previous period stats for trend calculation
+            cursor.execute('''
+                SELECT 
+                    COUNT(*) as total_orders,
+                    SUM(total) as total_revenue,
+                    AVG(total) as avg_order_value
+                FROM invoices 
+                WHERE date >= ? AND date < ? AND type = 'invoice'
+            ''', (previous_start.isoformat(), start_date.isoformat()))
+            
+            previous_stats = cursor.fetchone()
+            
+            # Calculate trends
+            def calculate_trend(current, previous):
+                if not previous or previous == 0:
+                    return 0
+                return ((current - previous) / previous) * 100
+            
+            revenue_trend = calculate_trend(current_stats[1] or 0, previous_stats[1] or 0)
+            orders_trend = calculate_trend(current_stats[0] or 0, previous_stats[0] or 0)
+            avg_value_trend = calculate_trend(current_stats[2] or 0, previous_stats[2] or 0)
+            
+            # Get component and vendor counts
+            cursor.execute('SELECT COUNT(*) FROM components WHERE is_active = 1')
+            active_components = cursor.fetchone()[0]
+            
+            cursor.execute('SELECT COUNT(*) FROM vendors')
+            vendor_count = cursor.fetchone()[0]
+            
+            # Get revenue trend data
+            cursor.execute('''
+                SELECT 
+                    date,
+                    SUM(total) as daily_revenue
+                FROM invoices
+                WHERE date >= ? AND type = 'invoice'
+                GROUP BY date
+                ORDER BY date
+            ''', (start_date.isoformat(),))
+            
+            revenue_data = cursor.fetchall()
+            
+            # Get category distribution
+            cursor.execute('''
+                SELECT 
+                    c.name as category,
+                    COUNT(DISTINCT i.id) as order_count,
+                    SUM(i.total) as category_revenue
+                FROM invoices i
+                JOIN json_each(i.items) items
+                JOIN components comp ON json_extract(items.value, '$.id') = comp.id
+                JOIN categories c ON comp.category_id = c.id
+                WHERE i.date >= ? AND i.type = 'invoice'
+                GROUP BY c.name
+                ORDER BY category_revenue DESC
+            ''', (start_date.isoformat(),))
+            
+            category_data = cursor.fetchall()
+            
+            # Get recent price updates
+            cursor.execute('''
+                SELECT 
+                    c.name as component,
+                    v.name as vendor,
+                    c.price as new_price,
+                    c.last_price_update,
+                    c.price as current_price
+                FROM components c
+                JOIN vendors v ON c.vendor_id = v.id
+                WHERE c.is_active = 1
+                ORDER BY c.last_price_update DESC
+                LIMIT 5
+            ''')
+            
+            price_updates = cursor.fetchall()
+            
+            # Get top components by revenue
+            cursor.execute('''
+                SELECT 
+                    comp.name as component,
+                    cat.name as category,
+                    COUNT(*) as units_sold,
+                    SUM(json_extract(items.value, '$.price') * json_extract(items.value, '$.quantity')) as revenue
+                FROM invoices i
+                JOIN json_each(i.items) items
+                JOIN components comp ON json_extract(items.value, '$.id') = comp.id
+                JOIN categories cat ON comp.category_id = cat.id
+                WHERE i.date >= ? AND i.type = 'invoice'
+                GROUP BY comp.id
+                ORDER BY revenue DESC
+                LIMIT 5
+            ''', (start_date.isoformat(),))
+            
+            top_components = cursor.fetchall()
+            
+            return jsonify({
+                'stats': {
+                    'totalOrders': current_stats[0] or 0,
+                    'totalRevenue': current_stats[1] or 0,
+                    'avgOrderValue': current_stats[2] or 0,
+                    'activeComponents': active_components,
+                    'vendorCount': vendor_count,
+                    'trends': {
+                        'revenue': revenue_trend,
+                        'orders': orders_trend,
+                        'avgValue': avg_value_trend
+                    }
+                },
+                'charts': {
+                    'revenue': {
+                        'labels': [row[0] for row in revenue_data],
+                        'data': [row[1] for row in revenue_data]
+                    },
+                    'categories': {
+                        'labels': [row[0] for row in category_data],
+                        'data': [row[2] for row in category_data]
+                    }
+                },
+                'tables': {
+                    'priceUpdates': [{
+                        'component': row[0],
+                        'vendor': row[1],
+                        'price': row[2],
+                        'updated': row[3],
+                        'currentPrice': row[4]
+                    } for row in price_updates],
+                    'topComponents': [{
+                        'name': row[0],
+                        'category': row[1],
+                        'unitsSold': row[2],
+                        'revenue': row[3]
+                    } for row in top_components]
+                }
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/invoices', methods=['POST'])
+def create_invoice():
+    try:
+        data = request.json
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Get next invoice number
+            cursor.execute('SELECT count FROM counters WHERE type = ?', (data['type'],))
+            current_count = cursor.fetchone()[0] + 1
+            
+            # Update counter
+            cursor.execute('UPDATE counters SET count = ? WHERE type = ?', (current_count, data['type']))
+            
+            # Generate invoice number
+            invoice_number = f"{data['type'].upper()}-{current_count:04d}"
+            
+            # Insert invoice
+            cursor.execute('''
+                INSERT INTO invoices (
+                    type, number, date, company_name, customer_name, 
+                    items, tax, total, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                data['type'],
+                invoice_number,
+                data['date'],
+                data['company_name'],
+                data['customer_name'],
+                json.dumps(data['items']),
+                data['tax'],
+                data['total'],
+                datetime.now().isoformat()
+            ))
+            
+            return jsonify({
+                'success': True,
+                'invoice_number': invoice_number
+            })
+            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

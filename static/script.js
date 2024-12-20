@@ -732,62 +732,96 @@ function showNotification(message, type = 'success') {
     // Hide and remove notification after 3 seconds
     setTimeout(() => {
         notification.classList.remove('show');
-        setTimeout(() => notification.remove(), 300);
+        setTimeout(() => notification.remove(), 3000);
     }, 3000);
+}
+
+// Toast notification system
+function showToast(message, type = 'success') {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.querySelector('.toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        document.body.appendChild(toastContainer);
+    }
+
+    // Create toast element
+    const toastEl = document.createElement('div');
+    toastEl.className = `toast align-items-center border-0 ${type === 'error' ? 'bg-danger' : 'bg-success'} text-white`;
+    toastEl.setAttribute('role', 'alert');
+    toastEl.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+
+    // Add toast to container
+    toastContainer.appendChild(toastEl);
+
+    // Initialize and show toast
+    const toast = new bootstrap.Toast(toastEl, {
+        autohide: true,
+        delay: 3000
+    });
+    toast.show();
+
+    // Remove toast element after it's hidden
+    toastEl.addEventListener('hidden.bs.toast', () => {
+        toastEl.remove();
+    });
 }
 
 // Update saveInvoice function
 async function saveInvoice() {
-    const companyName = 'Combined Solar Works';
-    const customerName = document.getElementById('customerName').value;
-    const date = document.getElementById('invoiceDate').value;
-    
-    if (!companyName || !customerName || !date || items.length === 0) {
-        showNotification('Please fill in all required fields and add at least one item', 'error');
-        return;
-    }
-
-    const total = items.reduce((sum, item) => sum + item.total, 0);
-
-    const documentType = document.getElementById('documentType').textContent;
-    const data = {
-        type: documentType === 'INVOICE' ? 'invoice' : 'quotation',
-        company_name: companyName,
-        customer_name: customerName,
-        date: date,
-        items: JSON.stringify(items),
-        total: total
-    };
-
     try {
-        // Show saving notification
-        showNotification('Saving document...', 'success');
+        const documentType = document.getElementById('documentType').textContent;
+        const companyName = 'Combined Solar Works'; // Fixed company name
+        const invoiceData = {
+            type: documentType === 'INVOICE' ? 'invoice' : 'quotation',
+            date: document.getElementById('invoiceDate').value,
+            company_name: companyName,
+            customer_name: document.getElementById('customerName').value,
+            items: items, // Use the global items array
+            tax: 0, // If you're not using tax
+            total: items.reduce((sum, item) => sum + item.total, 0)
+        };
 
-        const response = await fetch('/api/save', {
+        // Validate required fields
+        if (!invoiceData.customer_name || !invoiceData.date || items.length === 0) {
+            showToast('Please fill in all required fields and add at least one item', 'error');
+            return;
+        }
+
+        const response = await fetch('/api/invoices', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify(invoiceData)
         });
 
+        if (!response.ok) throw new Error('Failed to save invoice');
+          
         const result = await response.json();
-        
-        if (result.success) {
-            // Update the document number in the preview
-            document.getElementById('previewInvoiceNumber').textContent = result.number;
-            showNotification(`${documentType.toLowerCase()} saved successfully with number: ${result.number}`, 'success');
-            
-            // Clear form if needed
-            if (confirm('Document saved successfully. Would you like to create a new one?')) {
-                clearForm();
-            }
-        } else {
-            throw new Error(result.error || 'Error saving the document');
+        // Update the document number in the preview
+        document.getElementById('previewInvoiceNumber').textContent = result.invoice_number;
+        showToast(`${documentType} saved successfully with number: ${result.invoice_number}`);
+          
+        // Clear form after successful save
+        if (confirm('Document saved successfully. Would you like to create a new one?')) {
+            clearForm();
         }
+          
+        return result;
+          
     } catch (error) {
-        console.error('Error:', error);
-        showNotification(`Error saving document: ${error.message}`, 'error');
+        console.error('Error saving invoice:', error);
+        showToast('Error saving invoice', 'error');
+        throw error;
     }
 }
 
