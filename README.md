@@ -28,7 +28,7 @@ A web-based application for generating and managing invoices and quotations for 
 ### 4. Records System
 - Search and filter documents
 - View document history
-- Export capabilities
+- Export records to CSV
 - Document status tracking
 
 ## Technology Stack
@@ -137,6 +137,13 @@ solar-invoice-generator/
 3. Monitor sales performance
 4. Track component popularity
 5. Analyze category distribution
+
+### Managing Records
+1. Go to "Records" section
+2. View all invoices and quotations
+3. Search and filter documents
+4. Export records to CSV (saved in 'invoices' folder)
+5. View individual documents
 
 ## Contributing
 

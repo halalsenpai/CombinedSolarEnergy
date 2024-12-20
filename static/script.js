@@ -877,3 +877,31 @@ function viewRecord(number) {
     const modal = document.getElementById('previewModal');
     modal.style.display = 'block';
 }
+
+async function exportRecords() {
+    try {
+        const response = await fetch('/api/export-records');
+        if (!response.ok) throw new Error('Failed to export records');
+        
+        // Get filename from Content-Disposition header
+        const contentDisposition = response.headers.get('Content-Disposition');
+        const filename = contentDisposition.split('filename=')[1].replace(/"/g, '');
+        
+        // Create blob and download
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+        
+        showToast('Records exported successfully');
+        
+    } catch (error) {
+        console.error('Error exporting records:', error);
+        showToast('Error exporting records', 'error');
+    }
+}

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file, render_template
+from flask import Flask, request, jsonify, send_file, render_template, redirect
 import sqlite3
 from datetime import datetime
 import os
@@ -6,6 +6,7 @@ import pandas as pd
 from werkzeug.utils import secure_filename
 from datetime import timedelta
 import json
+import csv
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
@@ -183,6 +184,11 @@ ALLOWED_EXTENSIONS = {'xlsx', 'xls'}
 # Create uploads directory if it doesn't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+# Create exports directory if it doesn't exist
+EXPORT_FOLDER = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'invoices')
+if not os.path.exists(EXPORT_FOLDER):
+    os.makedirs(EXPORT_FOLDER)
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -280,15 +286,17 @@ def get_invoices():
 @app.route('/api/invoices/<number>', methods=['DELETE'])
 def delete_invoice(number):
     try:
-        with sqlite3.connect('invoices.db') as conn:
+        with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute('DELETE FROM invoices WHERE number = ?', (number,))
-            if cursor.rowcount > 0:
-                return jsonify({'success': True})
-            else:
-                return jsonify({'success': False, 'error': 'Record not found'}), 404
+            
+            if cursor.rowcount == 0:
+                return jsonify({'error': 'Record not found'}), 404
+                
+            return jsonify({'success': True})
+            
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/next-number/<doc_type>')
 def get_next_number(doc_type):
@@ -321,7 +329,20 @@ def get_next_number(doc_type):
 
 @app.route('/edit/<document_number>')
 def edit_document(document_number):
-    return render_template('edit.html')
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM invoices WHERE number = ?', (document_number,))
+            document = cursor.fetchone()
+            
+            if not document:
+                return redirect('/records')
+            
+            return render_template('edit.html', document_number=document_number)
+            
+    except Exception as e:
+        print(f"Error loading document: {e}")
+        return redirect('/records')
 
 @app.route('/api/document/<document_number>')
 def get_document(document_number):
@@ -900,6 +921,67 @@ def create_invoice():
                 'success': True,
                 'invoice_number': invoice_number
             })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export-records')
+def export_records():
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # Get all records
+            cursor.execute('''
+                SELECT 
+                    number,
+                    type,
+                    date,
+                    company_name,
+                    customer_name,
+                    total,
+                    created_at
+                FROM invoices
+                ORDER BY created_at DESC
+            ''')
+            
+            records = cursor.fetchall()
+            
+            # Create CSV file
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f'records_export_{timestamp}.csv'
+            filepath = os.path.join(EXPORT_FOLDER, filename)
+            
+            with open(filepath, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile)
+                # Write headers
+                writer.writerow([
+                    'Document Number',
+                    'Type',
+                    'Date',
+                    'Company',
+                    'Customer',
+                    'Total Amount',
+                    'Created At'
+                ])
+                # Write data
+                for record in records:
+                    writer.writerow([
+                        record[0],
+                        record[1].capitalize(),
+                        record[2],
+                        record[3],
+                        record[4],
+                        f"Rs. {record[5]:,.2f}",
+                        datetime.fromisoformat(record[6]).strftime('%Y-%m-%d %H:%M:%S')
+                    ])
+            
+            return send_file(
+                filepath,
+                mimetype='text/csv',
+                as_attachment=True,
+                download_name=filename
+            )
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
