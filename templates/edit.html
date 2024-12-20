@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Document - Solar System Invoice Generator{% endblock %}
+
+{% block content %}
+<!-- Main Container -->
+<div class="container py-4">
+    <!-- Document Form -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="card-title mb-0">
+                <i class="bi bi-pencil-square"></i> Edit Document
+                <span id="documentNumber" class="text-muted ms-2"></span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="customerName" class="form-label">Customer Name</label>
+                        <input type="text" class="form-control" id="customerName" required>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="invoiceDate" class="form-label">Document Date</label>
+                        <input type="date" class="form-control" id="invoiceDate" required>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Items Table -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="card-title mb-0"><i class="bi bi-table"></i> Items</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Item</th>
+                            <th>Description</th>
+                            <th>Quantity</th>
+                            <th>Unit Price</th>
+                            <th>Total</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody"></tbody>
+                    <tfoot class="table-light">
+                        <tr class="total-row bg-primary text-white">
+                            <td colspan="4" class="text-end fw-bold">Total Amount:</td>
+                            <td id="totalAmount" class="text-end fw-bold"></td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Item Form -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="card-title mb-0"><i class="bi bi-plus-circle"></i> Add Item</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label for="itemName" class="form-label">Item Name</label>
+                    <input type="text" id="itemName" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label for="itemDescription" class="form-label">Description</label>
+                    <input type="text" id="itemDescription" class="form-control">
+                </div>
+                <div class="col-md-2">
+                    <label for="itemQuantity" class="form-label">Quantity</label>
+                    <input type="number" id="itemQuantity" class="form-control" min="1" value="1">
+                </div>
+                <div class="col-md-2">
+                    <label for="itemPrice" class="form-label">Unit Price</label>
+                    <input type="number" id="itemPrice" class="form-control" min="0" step="0.01">
+                </div>
+                <div class="col-12">
+                    <button onclick="addItem()" class="btn btn-success">
+                        <i class="bi bi-plus-lg"></i> Add Item
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="d-flex gap-2 justify-content-end">
+        <button onclick="cancelEdit()" class="btn btn-secondary">
+            <i class="bi bi-x-circle"></i> Cancel
+        </button>
+        <button onclick="saveChanges()" class="btn btn-primary">
+            <i class="bi bi-save"></i> Save Changes
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="/static/edit.js"></script>
+{% endblock %} 

@@ -1,0 +1,12 @@
+/* Add your price management specific styles here */
+.price-history-table {
+    margin-top: 20px;
+}
+
+.price-form {
+    margin-bottom: 20px;
+}
+
+.price-card {
+    margin-bottom: 20px;
+} 
