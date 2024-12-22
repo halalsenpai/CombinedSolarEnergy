@@ -74,6 +74,16 @@ function displayRecords(records) {
             <td>${record.type.charAt(0).toUpperCase() + record.type.slice(1)}</td>
             <td>${new Date(record.date).toLocaleDateString()}</td>
             <td>${record.customer_name}</td>
+            <td>
+                ${record.customer_phone ? `
+                    <div class="d-flex align-items-center gap-2">
+                        ${record.customer_phone}
+                        <button class="btn btn-sm btn-success" onclick="sendWhatsApp('${record.number}', '${record.customer_phone}')">
+                            <i class="bi bi-whatsapp"></i>
+                        </button>
+                    </div>
+                ` : '-'}
+            </td>
             <td>Rs. ${record.total.toLocaleString()}</td>
             <td>
                 <div class="btn-group btn-group-sm">
@@ -195,6 +205,10 @@ function generatePreviewHTML(record) {
                         <p class="mb-0">
                             <span class="text-muted">Name:</span>
                             <strong class="ms-2">${record.customer_name}</strong>
+                        </p>
+                        <p class="mb-0 mt-2" ${!record.customer_phone ? 'style="display: none;"' : ''}>
+                            <span class="text-muted">Phone:</span>
+                            <strong class="ms-2">${record.customer_phone || ''}</strong>
                         </p>
                     </div>
                 </div>
@@ -412,5 +426,35 @@ async function exportRecords() {
     } catch (error) {
         console.error('Error exporting records:', error);
         showToast('Error exporting records', 'error');
+    }
+}
+
+async function sendWhatsApp(documentNumber, phone) {
+    try {
+        // Remove any non-digits first
+        let formattedPhone = phone.replace(/\D/g, '');
+        
+        // If number starts with 0, remove it and add Pakistan code
+        if (formattedPhone.startsWith('0')) {
+            formattedPhone = '92' + formattedPhone.substring(1);
+        }
+        // If number doesn't have country code, add it
+        else if (!formattedPhone.startsWith('92')) {
+            formattedPhone = '92' + formattedPhone;
+        }
+        
+        // Create WhatsApp message
+        const message = `Dear Valued Customer,\n\n` +
+            `Thank you for choosing Combined Solar Works for your solar energy needs. ` +
+            `This message is regarding your ${documentNumber}.\n\n` +
+            `We appreciate your business and are committed to providing you with the best solar solutions.\n\n` +
+            `Best Regards,\nCombined Solar Works Team`;
+        
+        // Open WhatsApp with message
+        window.open(`https://api.whatsapp.com/send/?phone=${formattedPhone}&text=${encodeURIComponent(message)}`, '_blank');
+        
+    } catch (error) {
+        console.error('Error sending WhatsApp:', error);
+        showToast('Error sending WhatsApp message', 'error');
     }
 } 

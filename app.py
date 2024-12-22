@@ -7,12 +7,16 @@ from werkzeug.utils import secure_filename
 from datetime import timedelta
 import json
 import csv
+from inflection import singularize, pluralize
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
+# Update database path for Render
+DATABASE_PATH = os.environ.get('DATABASE_URL', 'invoices.db')
+
 # Database initialization
 def init_db():
-    with sqlite3.connect('invoices.db') as conn:
+    with sqlite3.connect(DATABASE_PATH) as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS counters (
                 type TEXT PRIMARY KEY,
@@ -28,6 +32,7 @@ def init_db():
                 date TEXT,
                 company_name TEXT,
                 customer_name TEXT,
+                customer_phone TEXT DEFAULT NULL,
                 items TEXT,
                 tax REAL,
                 total REAL,
@@ -98,7 +103,7 @@ def init_db():
                 conn.execute('INSERT INTO vendors (name, email, phone, notes) VALUES (?, ?, ?, ?)', vendor)
 
 def get_db():
-    db = sqlite3.connect('invoices.db')
+    db = sqlite3.connect(DATABASE_PATH)
     return db
 
 def migrate_components():
@@ -174,7 +179,26 @@ def migrate_components():
     except Exception as e:
         print(f"Error during migration: {e}")
 
+def migrate_db():
+    try:
+        with get_db() as conn:
+            # Check if customer_phone column exists
+            cursor = conn.cursor()
+            cursor.execute("PRAGMA table_info(invoices)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            if 'customer_phone' not in columns:
+                print("Adding customer_phone column to invoices table...")
+                cursor.execute('''
+                    ALTER TABLE invoices 
+                    ADD COLUMN customer_phone TEXT DEFAULT NULL
+                ''')
+                print("Migration completed successfully")
+    except Exception as e:
+        print(f"Error during migration: {e}")
+
 init_db()
+migrate_db()
 migrate_components()
 
 # Add this near the top with other configurations
@@ -206,7 +230,7 @@ def serve_prices():
 
 @app.route('/api/counter/<type>')
 def get_counter(type):
-    with sqlite3.connect('invoices.db') as conn:
+    with sqlite3.connect(DATABASE_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute('SELECT count FROM counters WHERE type = ?', (type,))
         result = cursor.fetchone()
@@ -218,7 +242,7 @@ def save_invoice():
         data = request.json
         doc_type = data['type']  # 'invoice' or 'quotation'
         
-        with sqlite3.connect('invoices.db') as conn:
+        with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
             
             # Get the latest number for the specified document type
@@ -243,15 +267,17 @@ def save_invoice():
             # Save invoice/quotation
             cursor.execute('''
                 INSERT INTO invoices (
-                    type, number, date, company_name, customer_name,
+                    type, number, date, company_name, customer_name, 
+                    customer_phone,
                     items, tax, total, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 doc_type,
                 number,
                 data['date'],
                 data['company_name'],
                 data['customer_name'],
+                data['customer_phone'],
                 data['items'],
                 data['tax'],
                 data['total'],
@@ -271,7 +297,7 @@ def save_invoice():
 
 @app.route('/api/invoices')
 def get_invoices():
-    with sqlite3.connect('invoices.db') as conn:
+    with sqlite3.connect(DATABASE_PATH) as conn:
         cursor = conn.cursor()
         cursor.execute('''
             SELECT * FROM invoices 
@@ -301,7 +327,7 @@ def delete_invoice(number):
 @app.route('/api/next-number/<doc_type>')
 def get_next_number(doc_type):
     try:
-        with sqlite3.connect('invoices.db') as conn:
+        with sqlite3.connect(DATABASE_PATH) as conn:
             cursor = conn.cursor()
             # Get the latest number for the specified document type
             cursor.execute(
@@ -371,11 +397,12 @@ def update_invoice(number):
             cursor = conn.cursor()
             cursor.execute('''
                 UPDATE invoices 
-                SET customer_name = ?, date = ?, items = ?,
+                SET customer_name = ?, customer_phone = ?, date = ?, items = ?,
                     tax = ?, total = ?
                 WHERE number = ?
             ''', (
                 data['customer_name'],
+                data['customer_phone'],
                 data['date'],
                 data['items'],
                 data['tax'],
@@ -489,7 +516,10 @@ def delete_category(id):
     try:
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute('DELETE FROM components WHERE category_id = ?', (id,))
+            # Check if category has components
+            cursor.execute('SELECT COUNT(*) FROM components WHERE category_id = ?', (id,))
+            if cursor.fetchone()[0] > 0:
+                return jsonify({'error': 'Cannot delete category with components'}), 400
             cursor.execute('DELETE FROM categories WHERE id = ?', (id,))
             return jsonify({'success': True})
     except Exception as e:
@@ -580,6 +610,14 @@ def bulk_update_prices(id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def normalize_category_name(name):
+    """Normalize category name to prevent duplicates (e.g., 'Battery' and 'Batteries')"""
+    name = name.strip().lower()
+    singular = singularize(name)
+    plural = pluralize(name)
+    # Return the normalized form (singular)
+    return singular
+
 @app.route('/api/import-components', methods=['POST'])
 def import_components():
     try:
@@ -587,51 +625,103 @@ def import_components():
             return jsonify({'error': 'No file provided'}), 400
             
         file = request.files['file']
-        category_id = request.form.get('category_id')
+        sheet = request.form.get('sheet')
+        vendor_id = request.form.get('vendor_id')
+        mapping = json.loads(request.form.get('mapping', '{}'))
         
-        if not file or not file.filename:
-            return jsonify({'error': 'No file selected'}), 400
+        if not file or not sheet or not vendor_id or not mapping:
+            return jsonify({'error': 'Missing required fields'}), 400
             
-        if not allowed_file(file.filename):
-            return jsonify({'error': 'Invalid file type'}), 400
+        df = pd.read_excel(file, sheet_name=sheet)
         
-        # Save file temporarily
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-        
-        try:
-            # Read Excel file
-            df = pd.read_excel(filepath)
+        with get_db() as conn:
+            cursor = conn.cursor()
+            count = 0
             
-            # Validate columns
-            required_columns = ['Name', 'Description', 'Price']
-            if not all(col in df.columns for col in required_columns):
-                raise ValueError('Excel file must contain columns: Name, Description, Price')
+            # Get existing categories (normalized)
+            cursor.execute('SELECT id, name FROM categories')
+            categories = {}
+            for row in cursor.fetchall():
+                normalized = normalize_category_name(row[1])  # Get normalized form
+                categories[normalized] = {
+                    'id': row[0],
+                    'name': row[1]  # Keep original casing
+                }
             
-            # Import components
-            with get_db() as conn:
-                cursor = conn.cursor()
-                count = 0
-                
-                for _, row in df.iterrows():
+            # Create "Uncategorized" category if it doesn't exist
+            if 'uncategorized' not in categories.keys():
+                cursor.execute('INSERT INTO categories (name) VALUES (?)', ('Uncategorized',))
+                categories['uncategorized'] = {
+                    'id': cursor.lastrowid,
+                    'name': 'Uncategorized'
+                }
+            
+            # Process each row
+            for _, row in df.iterrows():
+                try:
+                    # Get category
+                    category_id = categories['uncategorized']['id']
+                    if mapping.get('category'):
+                        category_name = str(row[mapping['category']]).strip()
+                        if category_name:
+                            normalized_name = normalize_category_name(category_name)
+                            # Create new category if it doesn't exist
+                            if normalized_name not in categories:
+                                # Check if a similar category exists (case-insensitive)
+                                cursor.execute('SELECT id, name FROM categories WHERE LOWER(name) = LOWER(?)', 
+                                            (category_name,))
+                                existing = cursor.fetchone()
+                                if existing:
+                                    # Use existing category
+                                    category_id = existing[0]
+                                    categories[normalized_name] = {
+                                        'id': existing[0],
+                                        'name': existing[1]
+                                    }
+                                else:
+                                    # Create new category
+                                    cursor.execute('INSERT INTO categories (name) VALUES (?)', 
+                                                (category_name,))  # Use original casing
+                                    category_id = cursor.lastrowid
+                                    categories[normalized_name] = {
+                                        'id': category_id,
+                                        'name': category_name
+                                    }
+                            else:
+                                category_id = categories[normalized_name]['id']
+                    
+                    # Get other fields
+                    name = str(row[mapping['name']]).strip()
+                    description = str(row[mapping.get('description', '')]).strip() if mapping.get('description') else ''
+                    try:
+                        price = float(row[mapping['price']])
+                    except (ValueError, TypeError):
+                        price = 0
+                    
+                    # Insert component
                     cursor.execute('''
-                        INSERT INTO components (category_id, name, description, price, updated_at)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO components (
+                            category_id, vendor_id, name, description, 
+                            price, last_price_update
+                        ) VALUES (?, ?, ?, ?, ?, ?)
                     ''', (
                         category_id,
-                        str(row['Name']),
-                        str(row['Description']),
-                        float(row['Price']),
+                        vendor_id,
+                        name,
+                        description,
+                        price,
                         datetime.now().isoformat()
                     ))
                     count += 1
-                
-            return jsonify({'success': True, 'count': count})
+                    
+                except Exception as row_error:
+                    print(f"Error processing row: {row_error}")
+                    continue
             
-        finally:
-            # Clean up temporary file
-            os.remove(filepath)
+            return jsonify({
+                'success': True,
+                'count': count
+            })
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -903,14 +993,16 @@ def create_invoice():
             cursor.execute('''
                 INSERT INTO invoices (
                     type, number, date, company_name, customer_name, 
+                    customer_phone,
                     items, tax, total, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 data['type'],
                 invoice_number,
                 data['date'],
                 data['company_name'],
                 data['customer_name'],
+                data['customer_phone'],
                 json.dumps(data['items']),
                 data['tax'],
                 data['total'],
@@ -986,5 +1078,166 @@ def export_records():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/document-pdf/<document_number>')
+def get_document_url(document_number):
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM invoices WHERE number = ?', (document_number,))
+            record = cursor.fetchone()
+            
+            if not record:
+                return jsonify({'error': 'Document not found'}), 404
+            
+            # Return URL for viewing the document
+            return jsonify({
+                'url': f'/view/{document_number}'
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/view/<document_number>')
+def view_document(document_number):
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM invoices WHERE number = ?', (document_number,))
+            columns = [col[0] for col in cursor.description]
+            row = cursor.fetchone()
+            document = dict(zip(columns, row))
+            
+            if not document:
+                return redirect('/records')
+            
+            return render_template(
+                'view_document.html',
+                document=document,
+                items=json.loads(document['items'])
+            )
+            
+    except Exception as e:
+        print(f"Error viewing document: {e}")
+        return redirect('/records')
+
+@app.route('/api/components/bulk-delete', methods=['POST'])
+def bulk_delete_components():
+    try:
+        data = request.json
+        component_ids = data.get('componentIds', [])
+        
+        if not component_ids:
+            return jsonify({'error': 'No components specified'}), 400
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            placeholders = ','.join(['?' for _ in component_ids])
+            cursor.execute(f'DELETE FROM components WHERE id IN ({placeholders})', component_ids)
+            
+            return jsonify({
+                'success': True,
+                'count': cursor.rowcount
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/excel/sheets', methods=['POST'])
+def get_excel_sheets():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+        
+    file = request.files['file']
+    if not file or not allowed_file(file.filename):
+        return jsonify({'error': 'Invalid file'}), 400
+        
+    try:
+        df = pd.ExcelFile(file)
+        return jsonify({
+            'sheets': df.sheet_names
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/excel/preview', methods=['POST'])
+def preview_excel():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+        
+    file = request.files['file']
+    sheet = request.form.get('sheet')
+    
+    if not file or not sheet:
+        return jsonify({'error': 'Invalid request'}), 400
+        
+    try:
+        df = pd.read_excel(file, sheet_name=sheet)
+        return jsonify({
+            'columns': df.columns.tolist(),
+            'preview': df.head().to_dict('records')
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/categories/details')
+def get_categories_details():
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT 
+                    c.id,
+                    c.name,
+                    COUNT(comp.id) as component_count
+                FROM categories c
+                LEFT JOIN components comp ON c.id = comp.category_id
+                GROUP BY c.id
+                ORDER BY c.name
+            ''')
+            categories = []
+            for row in cursor.fetchall():
+                categories.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'component_count': row[2]
+                })
+            return jsonify(categories)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/categories/<int:id>', methods=['PUT'])
+def update_category(id):
+    try:
+        data = request.json
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE categories SET name = ? WHERE id = ?', 
+                         (data['name'], id))
+            return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/categories/merge', methods=['POST'])
+def merge_categories():
+    try:
+        data = request.json
+        source_id = data['source_id']
+        target_id = data['target_id']
+        
+        with get_db() as conn:
+            cursor = conn.cursor()
+            # Update components to new category
+            cursor.execute('''
+                UPDATE components 
+                SET category_id = ? 
+                WHERE category_id = ?
+            ''', (target_id, source_id))
+            # Delete old category
+            cursor.execute('DELETE FROM categories WHERE id = ?', (source_id,))
+            return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
-    app.run(debug=True, port=5001) 
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port) 

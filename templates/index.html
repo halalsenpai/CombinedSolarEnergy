@@ -20,6 +20,14 @@
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
+                        <label for="customerPhone" class="form-label">Customer Phone (Optional)</label>
+                        <input type="tel" class="form-control" id="customerPhone" 
+                               pattern="[\d\+\-\(\) ]+"
+                               title="Please enter a valid phone number">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
                         <label for="invoiceDate" class="form-label">Document Date</label>
                         <input type="date" class="form-control" id="invoiceDate" required>
                     </div>
@@ -188,6 +196,10 @@
                     <p class="mb-0">
                         <span class="text-muted">Name:</span>
                         <strong id="previewCustomerName" class="ms-2"></strong>
+                    </p>
+                    <p class="mb-0 mt-2" id="previewCustomerPhoneContainer" style="display: none;">
+                        <span class="text-muted">Phone:</span>
+                        <strong id="previewCustomerPhone" class="ms-2"></strong>
                     </p>
                 </div>
             </div>

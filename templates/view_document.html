@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.number }} - View{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="invoice-preview bg-white shadow-lg rounded-3 p-4 p-lg-5">
+        <!-- Same content as in the preview template -->
+        {{ include_template('_document_content.html') }}
+    </div>
+    
+    <div class="d-flex justify-content-end mt-4 gap-2">
+        <button onclick="window.print()" class="btn btn-primary">
+            <i class="bi bi-printer"></i> Print/Save as PDF
+        </button>
+    </div>
+</div>
+{% endblock %} 

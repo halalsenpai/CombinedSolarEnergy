@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{{ document.number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20mm;
+            color: #333;
+        }
+        
+        .header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+        
+        .company-info {
+            flex: 1;
+        }
+        
+        .document-info {
+            text-align: right;
+        }
+        
+        .company-name {
+            color: #2196F3;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .document-type {
+            color: #2196F3;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .customer-section {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 2rem;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+        }
+        
+        th, td {
+            border: 1px solid #dee2e6;
+            padding: 0.5rem;
+        }
+        
+        th {
+            background: #f8f9fa;
+        }
+        
+        .text-end {
+            text-align: right;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .total-row {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .terms-section {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 4px;
+            margin-bottom: 2rem;
+        }
+        
+        .signatures {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 3rem;
+        }
+        
+        .signature-box {
+            width: 40%;
+        }
+        
+        .signature-line {
+            border-top: 1px solid #000;
+            margin-bottom: 0.5rem;
+        }
+        
+        .footer-note {
+            text-align: center;
+            font-style: italic;
+            color: #6c757d;
+            margin-top: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header Section -->
+    <div class="header">
+        <div class="company-info">
+            <div class="company-name">{{ document.company_name }}</div>
+            <div class="company-details">
+                <p>Solar Solutions Provider</p>
+                <p>info@company.com<br>
+                +92-XXX-XXXXXXX<br>
+                Your Business Address, Karachi, Pakistan</p>
+            </div>
+        </div>
+        <div class="document-info">
+            <div class="document-type">{{ document.type.upper() }}</div>
+            <p>Document #: {{ document.number }}<br>
+            Date: {{ document.date }}<br>
+            Valid Until: {{ (document.date + timedelta(days=15)).strftime('%Y-%m-%d') }}</p>
+        </div>
+    </div>
+
+    <!-- Customer Section -->
+    <div class="customer-section">
+        <h3>Customer Details</h3>
+        <p>Name: {{ document.customer_name }}</p>
+        {% if document.customer_phone %}
+        <p>Phone: {{ document.customer_phone }}</p>
+        {% endif %}
+    </div>
+
+    <!-- Items Table -->
+    <table>
+        <thead>
+            <tr>
+                <th>Component</th>
+                <th>Description</th>
+                <th class="text-center">Quantity</th>
+                <th class="text-end">Unit Price</th>
+                <th class="text-end">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.name }}</td>
+                <td>{{ item.description or '-' }}</td>
+                <td class="text-center">{{ item.quantity }}</td>
+                <td class="text-end">Rs. {{ "{:,.2f}".format(item.price) }}</td>
+                <td class="text-end">Rs. {{ "{:,.2f}".format(item.quantity * item.price) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr class="total-row">
+                <td colspan="4" class="text-end">Total Amount:</td>
+                <td class="text-end">Rs. {{ "{:,.2f}".format(document.total) }}</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Terms Section -->
+    <div class="terms-section">
+        <h3>Terms & Conditions</h3>
+        <ul>
+            <li>Prices are valid for 15 days from the date of quotation</li>
+            <li>50% advance payment required with order confirmation</li>
+            <li>Balance payment before delivery</li>
+            <li>Delivery within 7-10 working days after order confirmation</li>
+            <li>Installation charges as per site requirements</li>
+            <li>Warranty as per manufacturer terms and conditions</li>
+            <li>GST/Tax as applicable</li>
+        </ul>
+    </div>
+
+    <!-- Signatures -->
+    <div class="signatures">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="signature-label">Authorized Signature</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div class="signature-label">Customer Signature</div>
+        </div>
+    </div>
+
+    <!-- Footer Note -->
+    <div class="footer-note">
+        Thank you for choosing our solar solutions!
+    </div>
+</body>
+</html> 

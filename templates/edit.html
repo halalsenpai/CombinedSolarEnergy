@@ -20,11 +20,17 @@
                         <label for="customerName" class="form-label">Customer Name</label>
                         <input type="text" class="form-control" id="customerName" required>
                     </div>
+                    <div class="mb-3">
+                        <label for="customerPhone" class="form-label">Customer Phone (Optional)</label>
+                        <input type="tel" class="form-control" id="customerPhone" 
+                               pattern="[\d\+\-\(\) ]+"
+                               title="Please enter a valid phone number">
+                    </div>
                 </div>
                 <div class="col-md-6">
                     <div class="mb-3">
-                        <label for="invoiceDate" class="form-label">Document Date</label>
-                        <input type="date" class="form-control" id="invoiceDate" required>
+                        <label for="documentDate" class="form-label">Document Date</label>
+                        <input type="date" class="form-control" id="documentDate" required>
                     </div>
                 </div>
             </div>

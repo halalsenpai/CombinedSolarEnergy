@@ -286,6 +286,17 @@ function displayDocument(documentData, isQuotation = false) {
     // Update preview
     document.getElementById('previewCompanyName').textContent = documentData.company_name;
     document.getElementById('previewCustomerName').textContent = documentData.customer_name;
+    
+    // Handle phone number display
+    const phoneContainer = document.getElementById('previewCustomerPhoneContainer');
+    const phoneElement = document.getElementById('previewCustomerPhone');
+    if (documentData.customer_phone) {
+        phoneContainer.style.display = 'block';
+        phoneElement.textContent = documentData.customer_phone;
+    } else {
+        phoneContainer.style.display = 'none';
+    }
+    
     document.getElementById('previewInvoiceNumber').textContent = documentData.number || '';
     document.getElementById('previewInvoiceDate').textContent = 
         new Date(documentData.date).toLocaleDateString();
@@ -331,6 +342,7 @@ function displayDocument(documentData, isQuotation = false) {
 async function generateInvoice(isQuotation = false) {
     const companyName = 'Combined Solar Works';
     const customerName = document.getElementById('customerName').value;
+    const customerPhone = document.getElementById('customerPhone').value;
     const invoiceDate = document.getElementById('invoiceDate').value;
 
     if (!customerName || !invoiceDate) {
@@ -359,6 +371,7 @@ async function generateInvoice(isQuotation = false) {
             number: documentNumber,
             company_name: companyName,
             customer_name: customerName,
+            customer_phone: customerPhone,
             date: invoiceDate,
             items: items
         };
@@ -785,6 +798,7 @@ async function saveInvoice() {
             date: document.getElementById('invoiceDate').value,
             company_name: companyName,
             customer_name: document.getElementById('customerName').value,
+            customer_phone: document.getElementById('customerPhone').value,
             items: items, // Use the global items array
             tax: 0, // If you're not using tax
             total: items.reduce((sum, item) => sum + item.total, 0)
@@ -904,4 +918,22 @@ async function exportRecords() {
         console.error('Error exporting records:', error);
         showToast('Error exporting records', 'error');
     }
+}
+
+function updatePreview() {
+    // Update customer details
+    document.getElementById('previewCustomerName').textContent = document.getElementById('customerName').value;
+    const customerPhone = document.getElementById('customerPhone').value;
+    const phoneContainer = document.getElementById('previewCustomerPhoneContainer');
+    const phoneElement = document.getElementById('previewCustomerPhone');
+    
+    if (customerPhone) {
+        phoneContainer.style.display = 'block';
+        phoneElement.textContent = customerPhone;
+    } else {
+        phoneContainer.style.display = 'none';
+    }
+    
+    // Update date
+    const date = document.getElementById('invoiceDate').value;
 }
