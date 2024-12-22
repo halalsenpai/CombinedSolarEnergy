@@ -11,11 +11,14 @@ from inflection import singularize, pluralize
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
-# Update database path for Render
-DATABASE_PATH = os.environ.get('DATABASE_URL', 'invoices.db')
+# Update DATABASE_PATH to use Render's writable directory
+DATABASE_PATH = os.path.join(os.environ.get('RENDER_DIR', ''), 'invoices.db')
 
 # Database initialization
 def init_db():
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+    
     with sqlite3.connect(DATABASE_PATH) as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS counters (
@@ -27,16 +30,13 @@ def init_db():
         conn.execute('''
             CREATE TABLE IF NOT EXISTS invoices (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT,
                 number TEXT UNIQUE,
+                type TEXT,
                 date TEXT,
                 company_name TEXT,
                 customer_name TEXT,
-                customer_phone TEXT DEFAULT NULL,
                 items TEXT,
-                tax REAL,
-                total REAL,
-                created_at TEXT
+                total REAL
             )
         ''')
         
