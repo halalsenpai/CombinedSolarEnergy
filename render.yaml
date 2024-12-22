@@ -4,7 +4,7 @@ services:
     env: python
     buildCommand: |
       apt-get update && \
-      apt-get install -y wkhtmltopdf xvfb && \
+      apt-get install -y wkhtmltopdf xvfb python3-dev build-essential && \
       pip install --upgrade pip && \
       pip install -r requirements.txt
     startCommand: gunicorn app:app --config gunicorn_config.py
